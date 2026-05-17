@@ -167,6 +167,8 @@ export interface AppConfigResponse {
   auth?: {
     email_login_enabled?: boolean;
     google_login_enabled?: boolean;
+    invitation_email_enabled?: boolean;
+    auto_accept_invitations_on_login?: boolean;
     cas?: {
       enabled?: boolean;
       display_name?: string;
@@ -1116,6 +1118,8 @@ export class ApiClient {
         auth: {
           email_login_enabled: true,
           google_login_enabled: false,
+          invitation_email_enabled: true,
+          auto_accept_invitations_on_login: false,
           cas: null,
         },
       },

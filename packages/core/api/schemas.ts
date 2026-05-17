@@ -45,6 +45,8 @@ export const AppConfigResponseSchema = z.object({
   auth: z.object({
     email_login_enabled: z.boolean().optional().default(true),
     google_login_enabled: z.boolean().optional().default(false),
+    invitation_email_enabled: z.boolean().optional().default(true),
+    auto_accept_invitations_on_login: z.boolean().optional().default(false),
     cas: z.object({
       enabled: z.boolean().optional().default(false),
       display_name: z.string().optional().default("Company SSO"),

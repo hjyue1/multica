@@ -76,6 +76,12 @@ CAS_EMAIL_DOMAIN=
 # 如果公司要求只允许 SSO 登录：
 EMAIL_LOGIN_ENABLED=false
 GOOGLE_LOGIN_ENABLED=false
+
+# 公司 SSO 场景可关闭邮件邀请：
+# 管理员在成员页输入邮箱后只保存邀请记录，不发邮件。
+# 用户通过 SSO 登录后会按邮箱自动加入工作区。
+INVITATION_EMAIL_ENABLED=false
+INVITATION_AUTO_ACCEPT_ON_LOGIN=true
 ```
 
 如果 CAS 的 `<cas:user>` 不是邮箱，而是工号或 username，则不能用 `CAS_ATTRIBUTE_EMAIL=user`。这种情况下需要二选一：
@@ -220,7 +226,36 @@ multica auth status
 
 ---
 
-## 8. 常见问题
+## 8. 免邮件邀请
+
+公司 SSO 场景下可以不配置邮件服务。成员邀请流程变为：
+
+```txt
+管理员在 Settings -> Members 输入员工邮箱
+  -> Multica 创建 pending invitation
+  -> 不发送邮件
+  -> 员工通过公司 SSO 登录
+  -> Multica 按登录邮箱查找 pending invitation
+  -> 自动创建 member
+  -> 员工进入工作区
+```
+
+需要配置：
+
+```env
+INVITATION_EMAIL_ENABLED=false
+INVITATION_AUTO_ACCEPT_ON_LOGIN=true
+```
+
+注意：
+
+1. 管理员输入的邮箱必须和 CAS 返回邮箱一致；
+2. 如果 `CAS_ATTRIBUTE_EMAIL=user`，则 `<cas:user>` 必须是邮箱；
+3. 如果 `<cas:user>` 是工号，需要让 CAS 返回 email attribute，或配置 `CAS_EMAIL_DOMAIN` 拼接邮箱。
+
+---
+
+## 9. 常见问题
 
 ### `CAS_LOGIN_URL` 可以留空吗？
 

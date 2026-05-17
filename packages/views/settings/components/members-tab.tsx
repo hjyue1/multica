@@ -243,6 +243,12 @@ export function MembersTab() {
   const wsId = useWorkspaceId();
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const { data: invitations = [] } = useQuery(invitationListOptions(wsId));
+  const { data: appConfig } = useQuery({
+    queryKey: ["app-config"],
+    queryFn: () => api.getConfig(),
+  });
+  const invitationEmailEnabled = appConfig?.auth?.invitation_email_enabled ?? true;
+  const autoAcceptInvitationsOnLogin = appConfig?.auth?.auto_accept_invitations_on_login ?? false;
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<MemberRole>("member");
@@ -285,7 +291,11 @@ export function MembersTab() {
       setInviteEmail("");
       setInviteRole("member");
       qc.invalidateQueries({ queryKey: workspaceKeys.invitations(wsId) });
-      toast.success(t(($) => $.members.toast_invitation_sent));
+      toast.success(
+        invitationEmailEnabled
+          ? t(($) => $.members.toast_invitation_sent)
+          : t(($) => $.members.toast_invitation_saved),
+      );
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         toast.info(e.message);
@@ -370,6 +380,11 @@ export function MembersTab() {
                 <Plus className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-sm font-medium">{t(($) => $.members.invite_title)}</h3>
               </div>
+              {!invitationEmailEnabled && autoAcceptInvitationsOnLogin && (
+                <p className="text-xs text-muted-foreground">
+                  {t(($) => $.members.invite_auto_accept_hint)}
+                </p>
+              )}
               <div className="grid gap-3 sm:grid-cols-[1fr_120px_auto]">
                 <Input
                   type="email"

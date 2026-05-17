@@ -13,6 +13,8 @@ interface ConfigState {
   googleClientId: string;
   emailLoginEnabled: boolean;
   googleLoginEnabled: boolean;
+  invitationEmailEnabled: boolean;
+  autoAcceptInvitationsOnLogin: boolean;
   cas: CASAuthConfig | null;
   setCdnDomain: (domain: string) => void;
   setAuthConfig: (config: {
@@ -20,6 +22,8 @@ interface ConfigState {
     googleClientId?: string;
     emailLoginEnabled?: boolean;
     googleLoginEnabled?: boolean;
+    invitationEmailEnabled?: boolean;
+    autoAcceptInvitationsOnLogin?: boolean;
     cas?: CASAuthConfig | null;
   }) => void;
 }
@@ -30,6 +34,8 @@ export const configStore = createStore<ConfigState>((set) => ({
   googleClientId: "",
   emailLoginEnabled: true,
   googleLoginEnabled: false,
+  invitationEmailEnabled: true,
+  autoAcceptInvitationsOnLogin: false,
   cas: null,
   setCdnDomain: (domain) => set({ cdnDomain: domain }),
   setAuthConfig: ({
@@ -37,6 +43,8 @@ export const configStore = createStore<ConfigState>((set) => ({
     googleClientId = "",
     emailLoginEnabled = true,
     googleLoginEnabled = Boolean(googleClientId),
+    invitationEmailEnabled = true,
+    autoAcceptInvitationsOnLogin = false,
     cas = null,
   }) =>
     set({
@@ -44,6 +52,8 @@ export const configStore = createStore<ConfigState>((set) => ({
       googleClientId,
       emailLoginEnabled,
       googleLoginEnabled,
+      invitationEmailEnabled,
+      autoAcceptInvitationsOnLogin,
       cas,
     }),
 }));

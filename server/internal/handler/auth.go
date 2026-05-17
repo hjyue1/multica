@@ -388,6 +388,7 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 	if isNew {
 		h.Analytics.Capture(analytics.Signup(uuidToString(user.ID), user.Email, signupSourceFromRequest(r)))
 	}
+	user = h.autoAcceptPendingInvitations(r.Context(), user)
 
 	tokenString, err := h.issueJWT(user)
 	if err != nil {
@@ -586,6 +587,7 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 			user = updated
 		}
 	}
+	user = h.autoAcceptPendingInvitations(r.Context(), user)
 
 	tokenString, err := h.issueJWT(user)
 	if err != nil {

@@ -28,9 +28,11 @@ type AppConfig struct {
 }
 
 type AppAuthConfig struct {
-	EmailLoginEnabled  bool          `json:"email_login_enabled"`
-	GoogleLoginEnabled bool          `json:"google_login_enabled"`
-	CAS                *AppCASConfig `json:"cas,omitempty"`
+	EmailLoginEnabled            bool          `json:"email_login_enabled"`
+	GoogleLoginEnabled           bool          `json:"google_login_enabled"`
+	InvitationEmailEnabled       bool          `json:"invitation_email_enabled"`
+	AutoAcceptInvitationsOnLogin bool          `json:"auto_accept_invitations_on_login"`
+	CAS                          *AppCASConfig `json:"cas,omitempty"`
 }
 
 type AppCASConfig struct {
@@ -50,8 +52,10 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 		AllowSignup:    os.Getenv("ALLOW_SIGNUP") != "false",
 		GoogleClientID: "",
 		Auth: AppAuthConfig{
-			EmailLoginEnabled:  !h.cfg.EmailLoginDisabled,
-			GoogleLoginEnabled: googleLoginEnabled,
+			EmailLoginEnabled:            !h.cfg.EmailLoginDisabled,
+			GoogleLoginEnabled:           googleLoginEnabled,
+			InvitationEmailEnabled:       !h.cfg.InvitationEmailDisabled,
+			AutoAcceptInvitationsOnLogin: h.cfg.AutoAcceptInvitationsOnLogin,
 		},
 	}
 	if googleLoginEnabled {

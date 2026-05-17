@@ -159,15 +159,19 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	h.publish(protocol.EventInvitationCreated, uuidToString(requester.WorkspaceID), "member", userID, eventPayload)
 
+	deliveryMethod := "email"
+	if h.cfg.InvitationEmailDisabled {
+		deliveryMethod = "preauthorized"
+	}
 	h.Analytics.Capture(analytics.TeamInviteSent(
 		uuidToString(requester.UserID),
 		uuidToString(requester.WorkspaceID),
 		email,
-		"email",
+		deliveryMethod,
 	))
 
 	// Send invitation email (fire-and-forget).
-	if h.EmailService != nil && workspaceName != "" {
+	if !h.cfg.InvitationEmailDisabled && h.EmailService != nil && workspaceName != "" {
 		inviterName := email // fallback
 		if inviter, err := h.Queries.GetUser(r.Context(), requester.UserID); err == nil {
 			inviterName = inviter.Name

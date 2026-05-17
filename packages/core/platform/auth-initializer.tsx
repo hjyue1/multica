@@ -56,6 +56,9 @@ export function AuthInitializer({
           emailLoginEnabled: cfg.auth?.email_login_enabled ?? true,
           googleLoginEnabled:
             cfg.auth?.google_login_enabled ?? Boolean(cfg.google_client_id),
+          invitationEmailEnabled: cfg.auth?.invitation_email_enabled ?? true,
+          autoAcceptInvitationsOnLogin:
+            cfg.auth?.auto_accept_invitations_on_login ?? false,
           cas:
             cfg.auth?.cas?.enabled === true && cfg.auth.cas.login_url
               ? {

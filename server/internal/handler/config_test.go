@@ -59,8 +59,10 @@ func TestGetConfigIncludesRuntimeAuthConfig(t *testing.T) {
 func TestGetConfigIncludesCASConfig(t *testing.T) {
 	origCfg := testHandler.cfg
 	testHandler.cfg = Config{
-		EmailLoginDisabled:  true,
-		GoogleLoginDisabled: true,
+		EmailLoginDisabled:           true,
+		GoogleLoginDisabled:          true,
+		InvitationEmailDisabled:      true,
+		AutoAcceptInvitationsOnLogin: true,
 		CAS: CASConfig{
 			Enabled:     true,
 			DisplayName: "Acme SSO",
@@ -91,6 +93,12 @@ func TestGetConfigIncludesCASConfig(t *testing.T) {
 	}
 	if cfg.Auth.GoogleLoginEnabled {
 		t.Fatal("auth.google_login_enabled: want false, got true")
+	}
+	if cfg.Auth.InvitationEmailEnabled {
+		t.Fatal("auth.invitation_email_enabled: want false, got true")
+	}
+	if !cfg.Auth.AutoAcceptInvitationsOnLogin {
+		t.Fatal("auth.auto_accept_invitations_on_login: want true, got false")
 	}
 	if cfg.GoogleClientID != "" {
 		t.Fatalf("google_client_id: want empty when Google disabled, got %q", cfg.GoogleClientID)

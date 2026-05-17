@@ -193,6 +193,7 @@ func (h *Handler) CASCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user = h.updateUserProfileFromCAS(r.Context(), user, identity)
+	user = h.autoAcceptPendingInvitations(r.Context(), user)
 
 	tokenString, err := h.issueJWT(user)
 	if err != nil {

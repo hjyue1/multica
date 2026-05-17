@@ -107,6 +107,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		AllowedEmailDomains:           splitAndTrim(os.Getenv("ALLOWED_EMAIL_DOMAINS")),
 		EmailLoginDisabled:            os.Getenv("EMAIL_LOGIN_ENABLED") == "false",
 		GoogleLoginDisabled:           os.Getenv("GOOGLE_LOGIN_ENABLED") == "false",
+		InvitationEmailDisabled:       os.Getenv("INVITATION_EMAIL_ENABLED") == "false",
+		AutoAcceptInvitationsOnLogin:  os.Getenv("INVITATION_AUTO_ACCEPT_ON_LOGIN") == "true",
 		CAS:                           casConfigFromEnv(),
 		UseDailyRollupForRuntimeUsage: os.Getenv("USAGE_DAILY_ROLLUP_ENABLED") == "true",
 		UseDailyRollupForDashboard:    os.Getenv("USAGE_DASHBOARD_ROLLUP_ENABLED") == "true",
