@@ -251,6 +251,11 @@ func contains(slice []string, s string) bool {
 }
 
 func (h *Handler) SendCode(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.EmailLoginDisabled {
+		writeError(w, http.StatusNotFound, "email login is disabled")
+		return
+	}
+
 	var req SendCodeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -333,6 +338,11 @@ func (h *Handler) SendCode(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.EmailLoginDisabled {
+		writeError(w, http.StatusNotFound, "email login is disabled")
+		return
+	}
+
 	var req VerifyCodeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -378,6 +388,7 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 	if isNew {
 		h.Analytics.Capture(analytics.Signup(uuidToString(user.ID), user.Email, signupSourceFromRequest(r)))
 	}
+	user = h.autoAcceptPendingInvitations(r.Context(), user)
 
 	tokenString, err := h.issueJWT(user)
 	if err != nil {
@@ -444,6 +455,11 @@ type googleUserInfo struct {
 }
 
 func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.GoogleLoginDisabled {
+		writeError(w, http.StatusNotFound, "Google login is disabled")
+		return
+	}
+
 	var req GoogleLoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -571,6 +587,7 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 			user = updated
 		}
 	}
+	user = h.autoAcceptPendingInvitations(r.Context(), user)
 
 	tokenString, err := h.issueJWT(user)
 	if err != nil {

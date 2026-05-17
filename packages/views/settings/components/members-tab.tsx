@@ -41,7 +41,7 @@ import { useAuthStore } from "@multica/core/auth";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useCurrentWorkspace } from "@multica/core/paths";
 import { memberListOptions, invitationListOptions, workspaceKeys } from "@multica/core/workspace/queries";
-import { api } from "@multica/core/api";
+import { ApiError, api } from "@multica/core/api";
 import { useT } from "../../i18n";
 
 const ROLE_ICONS: Record<MemberRole, typeof Crown> = {
@@ -49,6 +49,14 @@ const ROLE_ICONS: Record<MemberRole, typeof Crown> = {
   admin: Shield,
   member: User,
 };
+
+function normalizeInviteEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function isValidInviteEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
 function useRoleLabels() {
   const { t } = useT("settings");
@@ -235,6 +243,12 @@ export function MembersTab() {
   const wsId = useWorkspaceId();
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const { data: invitations = [] } = useQuery(invitationListOptions(wsId));
+  const { data: appConfig } = useQuery({
+    queryKey: ["app-config"],
+    queryFn: () => api.getConfig(),
+  });
+  const invitationEmailEnabled = appConfig?.auth?.invitation_email_enabled ?? true;
+  const autoAcceptInvitationsOnLogin = appConfig?.auth?.auto_accept_invitations_on_login ?? false;
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<MemberRole>("member");
@@ -255,18 +269,39 @@ export function MembersTab() {
 
   const handleInviteMember = async () => {
     if (!workspace) return;
+    const email = normalizeInviteEmail(inviteEmail);
+    if (!isValidInviteEmail(email)) {
+      toast.error(t(($) => $.members.toast_invitation_invalid_email));
+      return;
+    }
+    if (members.some((member) => member.email.toLowerCase() === email)) {
+      toast.info(t(($) => $.members.toast_member_already_exists));
+      return;
+    }
+    if (invitations.some((invitation) => invitation.invitee_email.toLowerCase() === email)) {
+      toast.info(t(($) => $.members.toast_invitation_already_pending));
+      return;
+    }
     setInviteLoading(true);
     try {
       await api.createMember(workspace.id, {
-        email: inviteEmail,
+        email,
         role: inviteRole,
       });
       setInviteEmail("");
       setInviteRole("member");
       qc.invalidateQueries({ queryKey: workspaceKeys.invitations(wsId) });
-      toast.success(t(($) => $.members.toast_invitation_sent));
+      toast.success(
+        invitationEmailEnabled
+          ? t(($) => $.members.toast_invitation_sent)
+          : t(($) => $.members.toast_invitation_saved),
+      );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t(($) => $.members.toast_invitation_failed));
+      if (e instanceof ApiError && e.status === 409) {
+        toast.info(e.message);
+      } else {
+        toast.error(e instanceof Error ? e.message : t(($) => $.members.toast_invitation_failed));
+      }
     } finally {
       setInviteLoading(false);
     }
@@ -345,6 +380,11 @@ export function MembersTab() {
                 <Plus className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-sm font-medium">{t(($) => $.members.invite_title)}</h3>
               </div>
+              {!invitationEmailEnabled && autoAcceptInvitationsOnLogin && (
+                <p className="text-xs text-muted-foreground">
+                  {t(($) => $.members.invite_auto_accept_hint)}
+                </p>
+              )}
               <div className="grid gap-3 sm:grid-cols-[1fr_120px_auto]">
                 <Input
                   type="email"

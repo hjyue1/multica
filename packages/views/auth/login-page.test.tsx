@@ -128,6 +128,28 @@ describe("LoginPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("hides email form when email login is disabled", () => {
+    renderWithI18n(
+      <LoginPage
+        onSuccess={onSuccess}
+        emailLoginEnabled={false}
+        cas={{
+          enabled: true,
+          displayName: "Company SSO",
+          loginUrl: "http://localhost:8080/auth/cas/start",
+        }}
+      />,
+    );
+
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^continue$/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /continue with company sso/i }),
+    ).toBeInTheDocument();
+  });
+
   // -------------------------------------------------------------------------
   // Email validation
   // -------------------------------------------------------------------------
@@ -387,6 +409,28 @@ describe("LoginPage", () => {
     expect(
       screen.queryByRole("button", { name: /continue with google/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders CAS button and redirects through configured login URL", async () => {
+    renderWithI18n(
+      <LoginPage
+        onSuccess={onSuccess}
+        cas={{
+          enabled: true,
+          displayName: "Company SSO",
+          loginUrl: "http://localhost:8080/auth/cas/start",
+        }}
+      />,
+    );
+
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", { name: /continue with company sso/i }),
+    );
+
+    expect(window.location.href).toContain(
+      "http://localhost:8080/auth/cas/start?next=%2F",
+    );
   });
 
   // -------------------------------------------------------------------------

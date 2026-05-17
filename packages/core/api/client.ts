@@ -105,6 +105,7 @@ import { parseWithFallback } from "./schema";
 import {
   AgentTemplateSchema,
   AgentTemplateSummaryListSchema,
+  AppConfigResponseSchema,
   AttachmentResponseSchema,
   ChildIssuesResponseSchema,
   CommentsListSchema,
@@ -146,9 +147,37 @@ export interface ApiClientOptions {
   identity?: ApiClientIdentity;
 }
 
+interface ApiRequestInit extends RequestInit {
+  extraHeaders?: Record<string, string>;
+  /** Status codes that are expected for this call and should not be logged as errors. */
+  quietStatuses?: number[];
+  /** Some auth probes expect 401 and should not clear unrelated client auth state. */
+  skipUnauthorizedHandler?: boolean;
+}
+
 export interface LoginResponse {
   token: string;
   user: User;
+}
+
+export interface AppConfigResponse {
+  cdn_domain: string;
+  allow_signup: boolean;
+  google_client_id?: string;
+  auth?: {
+    email_login_enabled?: boolean;
+    google_login_enabled?: boolean;
+    invitation_email_enabled?: boolean;
+    auto_accept_invitations_on_login?: boolean;
+    cas?: {
+      enabled?: boolean;
+      display_name?: string;
+      login_url?: string;
+    } | null;
+  };
+  posthog_key?: string;
+  posthog_host?: string;
+  analytics_environment?: string;
 }
 
 // --- Starter content (post-onboarding import) -----------------------------
@@ -316,7 +345,7 @@ export class ApiClient {
   // path, plain text for the attachment-preview proxy, etc.
   private async fetchRaw(
     path: string,
-    init?: RequestInit & { extraHeaders?: Record<string, string> },
+    init?: ApiRequestInit,
   ): Promise<Response> {
     const rid = createRequestId();
     const start = Date.now();
@@ -338,10 +367,15 @@ export class ApiClient {
     });
 
     if (!res.ok) {
-      if (res.status === 401) this.handleUnauthorized();
+      if (res.status === 401 && init?.skipUnauthorizedHandler !== true) {
+        this.handleUnauthorized();
+      }
       const { message, body } = await this.parseErrorBody(res, `API error: ${res.status} ${res.statusText}`);
-      const logLevel = res.status === 404 ? "warn" : "error";
-      this.logger[logLevel](`← ${res.status} ${path}`, { rid, duration: `${Date.now() - start}ms`, error: message });
+      const shouldLog = init?.quietStatuses?.includes(res.status) !== true;
+      if (shouldLog) {
+        const logLevel = res.status === 404 ? "warn" : "error";
+        this.logger[logLevel](`← ${res.status} ${path}`, { rid, duration: `${Date.now() - start}ms`, error: message });
+      }
       throw new ApiError(message, res.status, res.statusText, body);
     }
 
@@ -349,7 +383,7 @@ export class ApiClient {
     return res;
   }
 
-  private async fetch<T>(path: string, init?: RequestInit): Promise<T> {
+  private async fetch<T>(path: string, init?: ApiRequestInit): Promise<T> {
     const res = await this.fetchRaw(path, {
       ...init,
       extraHeaders: { "Content-Type": "application/json" },
@@ -391,8 +425,14 @@ export class ApiClient {
     return this.fetch("/api/cli-token", { method: "POST" });
   }
 
-  async getMe(): Promise<User> {
-    return this.fetch("/api/me");
+  async getMe(options?: { quietUnauthorized?: boolean }): Promise<User> {
+    return this.fetch("/api/me", options?.quietUnauthorized
+      ? {
+          headers: { "X-Auth-Probe": "cookie" },
+          quietStatuses: [401],
+          skipUnauthorizedHandler: true,
+        }
+      : undefined);
   }
 
   async markOnboardingComplete(payload?: {
@@ -1066,15 +1106,25 @@ export class ApiClient {
   }
 
   // App Config
-  async getConfig(): Promise<{
-    cdn_domain: string;
-    allow_signup: boolean;
-    google_client_id?: string;
-    posthog_key?: string;
-    posthog_host?: string;
-    analytics_environment?: string;
-  }> {
-    return this.fetch("/api/config");
+  async getConfig(): Promise<AppConfigResponse> {
+    const raw = await this.fetch<unknown>("/api/config");
+    return parseWithFallback<AppConfigResponse>(
+      raw,
+      AppConfigResponseSchema,
+      {
+        cdn_domain: "",
+        allow_signup: true,
+        google_client_id: "",
+        auth: {
+          email_login_enabled: true,
+          google_login_enabled: false,
+          invitation_email_enabled: true,
+          auto_accept_invitations_on_login: false,
+          cas: null,
+        },
+      },
+      { endpoint: "GET /api/config" },
+    );
   }
 
   // Workspaces
@@ -1109,6 +1159,7 @@ export class ApiClient {
     return this.fetch(`/api/workspaces/${workspaceId}/members`, {
       method: "POST",
       body: JSON.stringify(data),
+      quietStatuses: [409],
     });
   }
 

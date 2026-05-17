@@ -38,6 +38,26 @@ import type {
 // type still flows out at the call site; the schema only guards shape.
 // ---------------------------------------------------------------------------
 
+export const AppConfigResponseSchema = z.object({
+  cdn_domain: z.string().optional().default(""),
+  allow_signup: z.boolean().optional().default(true),
+  google_client_id: z.string().optional().default(""),
+  auth: z.object({
+    email_login_enabled: z.boolean().optional().default(true),
+    google_login_enabled: z.boolean().optional().default(false),
+    invitation_email_enabled: z.boolean().optional().default(true),
+    auto_accept_invitations_on_login: z.boolean().optional().default(false),
+    cas: z.object({
+      enabled: z.boolean().optional().default(false),
+      display_name: z.string().optional().default("Company SSO"),
+      login_url: z.string().optional().default(""),
+    }).loose().nullable().optional(),
+  }).loose().optional(),
+  posthog_key: z.string().optional(),
+  posthog_host: z.string().optional(),
+  analytics_environment: z.string().optional(),
+}).loose();
+
 const ReactionSchema = z.object({
   id: z.string(),
   comment_id: z.string(),
@@ -148,6 +168,7 @@ const IssueSchema = z.object({
   parent_issue_id: z.string().nullable(),
   project_id: z.string().nullable(),
   position: z.number(),
+  start_date: z.string().nullable(),
   due_date: z.string().nullable(),
   reactions: z.array(z.unknown()).optional(),
   labels: z.array(z.unknown()).optional(),

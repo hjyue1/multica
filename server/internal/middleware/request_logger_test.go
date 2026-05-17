@@ -46,6 +46,19 @@ func runRequestLogger(t *testing.T, status int, body string) *bytes.Buffer {
 	return logs
 }
 
+func runRequestLoggerWithHeader(t *testing.T, status int, body string, key string, value string) *bytes.Buffer {
+	t.Helper()
+	logs := withCapturedLogs(t)
+	handler := RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/api/me", nil).WithContext(context.Background())
+	req.Header.Set(key, value)
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+	return logs
+}
+
 // requireLogLevel asserts that the captured output contains exactly the
 // expected slog level prefix and not any of the disallowed ones.
 func requireLogLevel(t *testing.T, logs *bytes.Buffer, want string, disallowed ...string) {
@@ -84,6 +97,26 @@ func TestRequestLogger_GenericNotFound404KeepsWarn(t *testing.T) {
 
 func TestRequestLogger_400StaysWarn(t *testing.T) {
 	logs := runRequestLogger(t, http.StatusBadRequest, `{"error":"bad input"}`)
+	requireLogLevel(t, logs, "WARN", "INFO", "ERROR")
+}
+
+func TestRequestLogger_CookieAuthProbe401DowngradesToInfo(t *testing.T) {
+	logs := runRequestLoggerWithHeader(t, http.StatusUnauthorized, `{"error":"missing authorization"}`, "X-Auth-Probe", "cookie")
+	requireLogLevel(t, logs, "INFO", "WARN", "ERROR")
+}
+
+func TestRequestLogger_Generic401KeepsWarn(t *testing.T) {
+	logs := runRequestLogger(t, http.StatusUnauthorized, `{"error":"missing authorization"}`)
+	requireLogLevel(t, logs, "WARN", "INFO", "ERROR")
+}
+
+func TestRequestLogger_ExpectedInvite409DowngradesToInfo(t *testing.T) {
+	logs := runRequestLogger(t, http.StatusConflict, `{"error":"user is already a member"}`)
+	requireLogLevel(t, logs, "INFO", "WARN", "ERROR")
+}
+
+func TestRequestLogger_Generic409KeepsWarn(t *testing.T) {
+	logs := runRequestLogger(t, http.StatusConflict, `{"error":"conflict"}`)
 	requireLogLevel(t, logs, "WARN", "INFO", "ERROR")
 }
 

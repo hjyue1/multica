@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -69,6 +70,10 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 	if email == "" {
 		writeError(w, http.StatusBadRequest, "email is required")
+		return
+	}
+	if !isValidInviteEmail(email) {
+		writeError(w, http.StatusBadRequest, "invalid email address")
 		return
 	}
 
@@ -154,15 +159,19 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	h.publish(protocol.EventInvitationCreated, uuidToString(requester.WorkspaceID), "member", userID, eventPayload)
 
+	deliveryMethod := "email"
+	if h.cfg.InvitationEmailDisabled {
+		deliveryMethod = "preauthorized"
+	}
 	h.Analytics.Capture(analytics.TeamInviteSent(
 		uuidToString(requester.UserID),
 		uuidToString(requester.WorkspaceID),
 		email,
-		"email",
+		deliveryMethod,
 	))
 
 	// Send invitation email (fire-and-forget).
-	if h.EmailService != nil && workspaceName != "" {
+	if !h.cfg.InvitationEmailDisabled && h.EmailService != nil && workspaceName != "" {
 		inviterName := email // fallback
 		if inviter, err := h.Queries.GetUser(r.Context(), requester.UserID); err == nil {
 			inviterName = inviter.Name
@@ -176,6 +185,11 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, resp)
+}
+
+func isValidInviteEmail(email string) bool {
+	addr, err := mail.ParseAddress(email)
+	return err == nil && addr.Address == email && strings.Contains(email, "@")
 }
 
 // ---------------------------------------------------------------------------

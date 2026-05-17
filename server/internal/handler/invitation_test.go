@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
 const invitationTestEmail = "invitation-test@multica.ai"
@@ -51,6 +53,74 @@ func TestCreateInvitation_BlocksWhilePending(t *testing.T) {
 	testHandler.CreateInvitation(w2, req2)
 	if w2.Code != http.StatusConflict {
 		t.Fatalf("second invite: expected 409 while still pending, got %d: %s", w2.Code, w2.Body.String())
+	}
+}
+
+func TestCreateInvitationRejectsInvalidEmail(t *testing.T) {
+	req := newRequest("POST", "/api/workspaces/"+testWorkspaceID+"/members", CreateMemberRequest{
+		Email: "h j yue",
+		Role:  "member",
+	})
+	req = withURLParam(req, "id", testWorkspaceID)
+	w := httptest.NewRecorder()
+
+	testHandler.CreateInvitation(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("invalid email: expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAutoAcceptPendingInvitationsOnLogin(t *testing.T) {
+	clearInvitationsForTestWorkspace(t)
+	origCfg := testHandler.cfg
+	testHandler.cfg.AutoAcceptInvitationsOnLogin = true
+	defer func() { testHandler.cfg = origCfg }()
+
+	const email = "auto-accept-invite@multica.ai"
+	req := newRequest("POST", "/api/workspaces/"+testWorkspaceID+"/members", CreateMemberRequest{
+		Email: email,
+		Role:  "member",
+	})
+	req = withURLParam(req, "id", testWorkspaceID)
+	w := httptest.NewRecorder()
+	testHandler.CreateInvitation(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create invitation: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	user, err := testHandler.Queries.CreateUser(context.Background(), db.CreateUserParams{
+		Name:  "Auto Accept Invitee",
+		Email: email,
+	})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM member WHERE workspace_id = $1 AND user_id = $2`, parseUUID(testWorkspaceID), user.ID)
+		testPool.Exec(context.Background(), `DELETE FROM "user" WHERE id = $1`, user.ID)
+	})
+
+	updated := testHandler.autoAcceptPendingInvitations(context.Background(), user)
+	if !updated.OnboardedAt.Valid {
+		t.Fatal("expected auto-accepted invitee to be marked onboarded")
+	}
+
+	if _, err := testHandler.Queries.GetMemberByUserAndWorkspace(context.Background(), db.GetMemberByUserAndWorkspaceParams{
+		UserID:      user.ID,
+		WorkspaceID: parseUUID(testWorkspaceID),
+	}); err != nil {
+		t.Fatalf("expected membership to be created: %v", err)
+	}
+
+	var status string
+	if err := testPool.QueryRow(context.Background(), `
+		SELECT status FROM workspace_invitation
+		WHERE workspace_id = $1 AND invitee_email = $2
+	`, parseUUID(testWorkspaceID), email).Scan(&status); err != nil {
+		t.Fatalf("read invitation status: %v", err)
+	}
+	if status != "accepted" {
+		t.Fatalf("invitation status: want accepted, got %q", status)
 	}
 }
 

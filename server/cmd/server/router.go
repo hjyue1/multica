@@ -105,8 +105,18 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		AllowSignup:                   os.Getenv("ALLOW_SIGNUP") != "false",
 		AllowedEmails:                 splitAndTrim(os.Getenv("ALLOWED_EMAILS")),
 		AllowedEmailDomains:           splitAndTrim(os.Getenv("ALLOWED_EMAIL_DOMAINS")),
+		EmailLoginDisabled:            os.Getenv("EMAIL_LOGIN_ENABLED") == "false",
+		GoogleLoginDisabled:           os.Getenv("GOOGLE_LOGIN_ENABLED") == "false",
+		InvitationEmailDisabled:       os.Getenv("INVITATION_EMAIL_ENABLED") == "false",
+		AutoAcceptInvitationsOnLogin:  os.Getenv("INVITATION_AUTO_ACCEPT_ON_LOGIN") == "true",
+		CAS:                           casConfigFromEnv(),
 		UseDailyRollupForRuntimeUsage: os.Getenv("USAGE_DAILY_ROLLUP_ENABLED") == "true",
 		UseDailyRollupForDashboard:    os.Getenv("USAGE_DASHBOARD_ROLLUP_ENABLED") == "true",
+	}
+	if signupConfig.CAS.Enabled {
+		if err := signupConfig.CAS.Validate(); err != nil {
+			panic(err)
+		}
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
 	if opts.DaemonWakeup != nil {
@@ -162,7 +172,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   origins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Workspace-ID", "X-Workspace-Slug", "X-Request-ID", "X-Agent-ID", "X-Task-ID", "X-CSRF-Token", "X-Client-Platform", "X-Client-Version", "X-Client-OS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Workspace-ID", "X-Workspace-Slug", "X-Request-ID", "X-Agent-ID", "X-Task-ID", "X-CSRF-Token", "X-Auth-Probe", "X-Client-Platform", "X-Client-Version", "X-Client-OS"},
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
@@ -206,6 +216,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	}
 
 	// Auth (public)
+	r.Get("/auth/cas/start", h.CASStart)
+	r.Get("/auth/cas/callback", h.CASCallback)
 	r.Post("/auth/send-code", h.SendCode)
 	r.Post("/auth/verify-code", h.VerifyCode)
 	r.Post("/auth/google", h.GoogleLogin)
@@ -652,6 +664,28 @@ func optionalUUID(s string) pgtype.UUID {
 		return pgtype.UUID{}
 	}
 	return util.MustParseUUID(s)
+}
+
+func casConfigFromEnv() handler.CASConfig {
+	return handler.CASConfig{
+		Enabled:         os.Getenv("CAS_ENABLED") == "true",
+		DisplayName:     envOrDefault("CAS_DISPLAY_NAME", "Company SSO"),
+		LoginURL:        strings.TrimSpace(os.Getenv("CAS_LOGIN_URL")),
+		ValidateURL:     strings.TrimSpace(os.Getenv("CAS_VALIDATE_URL")),
+		ServiceURL:      strings.TrimSpace(os.Getenv("CAS_SERVICE_URL")),
+		AttributeEmail:  envOrDefault("CAS_ATTRIBUTE_EMAIL", "email"),
+		AttributeName:   envOrDefault("CAS_ATTRIBUTE_NAME", "name"),
+		AttributeAvatar: envOrDefault("CAS_ATTRIBUTE_AVATAR", "avatar"),
+		EmailDomain:     strings.TrimSpace(os.Getenv("CAS_EMAIL_DOMAIN")),
+	}
+}
+
+func envOrDefault(name, fallback string) string {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback
+	}
+	return value
 }
 
 func splitAndTrim(s string) []string {

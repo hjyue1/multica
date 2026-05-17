@@ -35,6 +35,12 @@ interface GoogleAuthConfig {
   state?: string;
 }
 
+interface CASAuthConfig {
+  enabled: boolean;
+  displayName: string;
+  loginUrl: string;
+}
+
 interface CliCallbackConfig {
   /** Validated localhost callback URL */
   url: string;
@@ -50,6 +56,10 @@ interface LoginPageProps {
   onSuccess: () => void;
   /** Google OAuth config. Omit to disable Google login. */
   google?: GoogleAuthConfig;
+  /** Company SSO config. Omit or disable to hide the CAS login button. */
+  cas?: CASAuthConfig | null;
+  /** Whether the email verification-code form should be shown. */
+  emailLoginEnabled?: boolean;
   /** CLI callback config for authorizing CLI tools. */
   cliCallback?: CliCallbackConfig;
   /** Called after a token is obtained (e.g. to set cookies). */
@@ -101,6 +111,8 @@ export function LoginPage({
   logo,
   onSuccess,
   google,
+  cas,
+  emailLoginEnabled = true,
   cliCallback,
   onTokenObtained,
   onGoogleLogin,
@@ -286,6 +298,24 @@ export function LoginPage({
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
   };
 
+  const handleCASLogin = () => {
+    if (!cas?.enabled || !cas.loginUrl) return;
+    const loginUrl = new URL(cas.loginUrl, window.location.origin);
+    let currentPath = "/login";
+    try {
+      const currentUrl = new URL(window.location.href);
+      currentPath = `${currentUrl.pathname}${currentUrl.search}` || "/login";
+    } catch {
+      currentPath = `${window.location.pathname || ""}${window.location.search || ""}` || "/login";
+    }
+    loginUrl.searchParams.set("next", currentPath);
+    window.location.href = loginUrl.toString();
+  };
+
+  const showCAS = cas?.enabled === true && Boolean(cas.loginUrl);
+  const showGoogle = Boolean(google || onGoogleLogin);
+  const showSSODivider = emailLoginEnabled && (showCAS || showGoogle);
+
   // -------------------------------------------------------------------------
   // CLI confirm step
   // -------------------------------------------------------------------------
@@ -417,49 +447,69 @@ export function LoginPage({
             {t(($) => $.signin.description)}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form id="login-form" onSubmit={handleSendCode} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="login-email">{t(($) => $.common.email)}</Label>
-              <Input
-                id="login-email"
-                type="email"
-                placeholder={t(($) => $.common.email_placeholder)}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoFocus
-                required
-              />
-            </div>
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
-          </form>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-3">
-          <Button
-            type="submit"
-            form="login-form"
-            className="w-full"
-            size="lg"
-            disabled={!email || loading}
-          >
-            {loading
-              ? t(($) => $.signin.sending)
-              : t(($) => $.signin.continue)}
-          </Button>
-          {(google || onGoogleLogin) && (
-            <>
-              <div className="relative w-full">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">
-                    {t(($) => $.signin.divider)}
-                  </span>
-                </div>
+        {emailLoginEnabled && (
+          <CardContent>
+            <form id="login-form" onSubmit={handleSendCode} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="login-email">{t(($) => $.common.email)}</Label>
+                <Input
+                  id="login-email"
+                  type="email"
+                  placeholder={t(($) => $.common.email_placeholder)}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoFocus
+                  required
+                />
               </div>
+              {error && (
+                <p className="text-sm text-destructive">{error}</p>
+              )}
+            </form>
+          </CardContent>
+        )}
+        <CardFooter className="flex flex-col gap-3">
+          {emailLoginEnabled && (
+            <Button
+              type="submit"
+              form="login-form"
+              className="w-full"
+              size="lg"
+              disabled={!email || loading}
+            >
+              {loading
+                ? t(($) => $.signin.sending)
+                : t(($) => $.signin.continue)}
+            </Button>
+          )}
+          {showSSODivider && (
+            <div className="relative w-full">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">
+                  {t(($) => $.signin.divider)}
+                </span>
+              </div>
+            </div>
+          )}
+          {showCAS && (
+            <Button
+              type="button"
+              variant={emailLoginEnabled ? "outline" : "default"}
+              className="w-full"
+              size="lg"
+              onClick={handleCASLogin}
+              disabled={loading}
+            >
+              {t(($) => $.signin.cas, {
+                provider: cas?.displayName || "Company SSO",
+              })}
+            </Button>
+          )}
+          {showGoogle && (
+            <>
               <Button
                 type="button"
                 variant="outline"

@@ -59,6 +59,9 @@ function LoginPageContent() {
   const qc = useQueryClient();
   const { t } = useT("auth");
   const googleClientId = useConfigStore((state) => state.googleClientId);
+  const googleLoginEnabled = useConfigStore((state) => state.googleLoginEnabled);
+  const emailLoginEnabled = useConfigStore((state) => state.emailLoginEnabled);
+  const cas = useConfigStore((state) => state.cas);
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
   const searchParams = useSearchParams();
@@ -188,8 +191,10 @@ function LoginPageContent() {
   return (
     <LoginPage
       onSuccess={handleSuccess}
+      emailLoginEnabled={emailLoginEnabled}
+      cas={cas}
       google={
-        googleClientId
+        googleLoginEnabled && googleClientId
           ? {
               clientId: googleClientId,
               redirectUri: `${window.location.origin}/auth/callback`,
