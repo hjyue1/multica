@@ -47,6 +47,9 @@ type Config struct {
 	AllowSignup         bool
 	AllowedEmails       []string
 	AllowedEmailDomains []string
+	EmailLoginDisabled  bool
+	GoogleLoginDisabled bool
+	CAS                 CASConfig
 	// UseDailyRollupForRuntimeUsage routes ListRuntimeUsage to the
 	// task_usage_daily rollup table when true. Default false: the read
 	// path stays on the raw task_usage stream so rollup-related issues

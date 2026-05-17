@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -69,6 +70,10 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 	if email == "" {
 		writeError(w, http.StatusBadRequest, "email is required")
+		return
+	}
+	if !isValidInviteEmail(email) {
+		writeError(w, http.StatusBadRequest, "invalid email address")
 		return
 	}
 
@@ -176,6 +181,11 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, resp)
+}
+
+func isValidInviteEmail(email string) bool {
+	addr, err := mail.ParseAddress(email)
+	return err == nil && addr.Address == email && strings.Contains(email, "@")
 }
 
 // ---------------------------------------------------------------------------

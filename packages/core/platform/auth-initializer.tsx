@@ -2,7 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { getApi } from "../api";
+import { ApiError, getApi } from "../api";
 import { useAuthStore } from "../auth";
 import {
   captureSignupSource,
@@ -53,6 +53,17 @@ export function AuthInitializer({
         configStore.getState().setAuthConfig({
           allowSignup: cfg.allow_signup,
           googleClientId: cfg.google_client_id,
+          emailLoginEnabled: cfg.auth?.email_login_enabled ?? true,
+          googleLoginEnabled:
+            cfg.auth?.google_login_enabled ?? Boolean(cfg.google_client_id),
+          cas:
+            cfg.auth?.cas?.enabled === true && cfg.auth.cas.login_url
+              ? {
+                  enabled: true,
+                  displayName: cfg.auth.cas.display_name || "Company SSO",
+                  loginUrl: cfg.auth.cas.login_url,
+                }
+              : null,
         });
         if (cfg.posthog_key) {
           initAnalytics({
@@ -87,13 +98,17 @@ export function AuthInitializer({
       // resolve the slug without a second fetch. The active workspace itself
       // is derived from the URL by [workspaceSlug]/layout.tsx — no imperative
       // selection here.
-      Promise.all([api.getMe(), api.listWorkspaces()])
-        .then(([user, wsList]) => {
+      api
+        .getMe({ quietUnauthorized: true })
+        .then(async (user) => {
+          const wsList = await api.listWorkspaces();
           onAuthSuccess(user);
           qc.setQueryData(workspaceKeys.list(), wsList);
         })
         .catch((err) => {
-          logger.error("cookie auth init failed", err);
+          if (!(err instanceof ApiError && err.status === 401)) {
+            logger.error("cookie auth init failed", err);
+          }
           onAuthFailure();
         });
       return;

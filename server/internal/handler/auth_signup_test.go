@@ -1,7 +1,11 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -111,4 +115,43 @@ func TestFindOrCreateUserGating(t *testing.T) {
 			t.Fatalf("expected whitelisted user to pass signup check, but got %v", err)
 		}
 	})
+}
+
+func TestEmailLoginDisabledRejectsCodeEndpoints(t *testing.T) {
+	h := newTestHandler(Config{EmailLoginDisabled: true})
+
+	body := map[string]string{"email": "user@example.com", "code": "123456"}
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(body); err != nil {
+		t.Fatalf("encode request: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/auth/send-code", &buf)
+	h.SendCode(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("SendCode: expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+
+	buf.Reset()
+	if err := json.NewEncoder(&buf).Encode(body); err != nil {
+		t.Fatalf("encode request: %v", err)
+	}
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/auth/verify-code", &buf)
+	h.VerifyCode(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("VerifyCode: expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestGoogleLoginDisabledRejectsEndpoint(t *testing.T) {
+	h := newTestHandler(Config{GoogleLoginDisabled: true})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/auth/google", strings.NewReader(`{"code":"abc"}`))
+	h.GoogleLogin(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("GoogleLogin: expected 404, got %d: %s", w.Code, w.Body.String())
+	}
 }

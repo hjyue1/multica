@@ -41,7 +41,7 @@ import { useAuthStore } from "@multica/core/auth";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useCurrentWorkspace } from "@multica/core/paths";
 import { memberListOptions, invitationListOptions, workspaceKeys } from "@multica/core/workspace/queries";
-import { api } from "@multica/core/api";
+import { ApiError, api } from "@multica/core/api";
 import { useT } from "../../i18n";
 
 const ROLE_ICONS: Record<MemberRole, typeof Crown> = {
@@ -49,6 +49,14 @@ const ROLE_ICONS: Record<MemberRole, typeof Crown> = {
   admin: Shield,
   member: User,
 };
+
+function normalizeInviteEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function isValidInviteEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
 function useRoleLabels() {
   const { t } = useT("settings");
@@ -255,10 +263,23 @@ export function MembersTab() {
 
   const handleInviteMember = async () => {
     if (!workspace) return;
+    const email = normalizeInviteEmail(inviteEmail);
+    if (!isValidInviteEmail(email)) {
+      toast.error(t(($) => $.members.toast_invitation_invalid_email));
+      return;
+    }
+    if (members.some((member) => member.email.toLowerCase() === email)) {
+      toast.info(t(($) => $.members.toast_member_already_exists));
+      return;
+    }
+    if (invitations.some((invitation) => invitation.invitee_email.toLowerCase() === email)) {
+      toast.info(t(($) => $.members.toast_invitation_already_pending));
+      return;
+    }
     setInviteLoading(true);
     try {
       await api.createMember(workspace.id, {
-        email: inviteEmail,
+        email,
         role: inviteRole,
       });
       setInviteEmail("");
@@ -266,7 +287,11 @@ export function MembersTab() {
       qc.invalidateQueries({ queryKey: workspaceKeys.invitations(wsId) });
       toast.success(t(($) => $.members.toast_invitation_sent));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t(($) => $.members.toast_invitation_failed));
+      if (e instanceof ApiError && e.status === 409) {
+        toast.info(e.message);
+      } else {
+        toast.error(e instanceof Error ? e.message : t(($) => $.members.toast_invitation_failed));
+      }
     } finally {
       setInviteLoading(false);
     }

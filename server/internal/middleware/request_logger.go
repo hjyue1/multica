@@ -51,6 +51,11 @@ var softNotFoundMarkers = []string{
 	"task not found",
 }
 
+var softConflictMarkers = []string{
+	"user is already a member",
+	"invitation already pending for this email",
+}
+
 // RequestLogger is a structured HTTP request logger using slog.
 // It replaces Chi's built-in chimw.Logger with colored, structured output.
 func RequestLogger(next http.Handler) http.Handler {
@@ -108,6 +113,16 @@ func RequestLogger(next http.Handler) http.Handler {
 			// neither noise nor a bug; logging at Info keeps the signal in
 			// structured logs without flooding the warn channel.
 			slog.Info("http request", attrs...)
+		case status == http.StatusUnauthorized && r.Header.Get("X-Auth-Probe") == "cookie":
+			// The web app probes /api/me at boot to detect an existing HttpOnly
+			// session. A 401 here is the normal logged-out state on /login, not
+			// a bad credential attempt.
+			slog.Info("http request", attrs...)
+		case status == http.StatusConflict && isSoftConflict(bodyPrefix.Bytes()):
+			// Invite conflicts are normal UI outcomes: the caller tried to invite
+			// an existing member or duplicate pending invite. Keep them visible
+			// without treating them as server-side warnings.
+			slog.Info("http request", attrs...)
 		case status >= 400:
 			slog.Warn("http request", attrs...)
 		default:
@@ -119,11 +134,19 @@ func RequestLogger(next http.Handler) http.Handler {
 // isSoftNotFound reports whether the captured response body matches one of
 // the expected stale-state 404 signals listed in softNotFoundMarkers.
 func isSoftNotFound(body []byte) bool {
+	return containsMarker(body, softNotFoundMarkers)
+}
+
+func isSoftConflict(body []byte) bool {
+	return containsMarker(body, softConflictMarkers)
+}
+
+func containsMarker(body []byte, markers []string) bool {
 	if len(body) == 0 {
 		return false
 	}
 	lower := strings.ToLower(string(body))
-	for _, marker := range softNotFoundMarkers {
+	for _, marker := range markers {
 		if strings.Contains(lower, marker) {
 			return true
 		}

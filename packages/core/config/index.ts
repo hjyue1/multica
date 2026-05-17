@@ -1,21 +1,51 @@
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 
+export interface CASAuthConfig {
+  enabled: boolean;
+  displayName: string;
+  loginUrl: string;
+}
+
 interface ConfigState {
   cdnDomain: string;
   allowSignup: boolean;
   googleClientId: string;
+  emailLoginEnabled: boolean;
+  googleLoginEnabled: boolean;
+  cas: CASAuthConfig | null;
   setCdnDomain: (domain: string) => void;
-  setAuthConfig: (config: { allowSignup: boolean; googleClientId?: string }) => void;
+  setAuthConfig: (config: {
+    allowSignup: boolean;
+    googleClientId?: string;
+    emailLoginEnabled?: boolean;
+    googleLoginEnabled?: boolean;
+    cas?: CASAuthConfig | null;
+  }) => void;
 }
 
 export const configStore = createStore<ConfigState>((set) => ({
   cdnDomain: "",
   allowSignup: true,
   googleClientId: "",
+  emailLoginEnabled: true,
+  googleLoginEnabled: false,
+  cas: null,
   setCdnDomain: (domain) => set({ cdnDomain: domain }),
-  setAuthConfig: ({ allowSignup, googleClientId = "" }) =>
-    set({ allowSignup, googleClientId }),
+  setAuthConfig: ({
+    allowSignup,
+    googleClientId = "",
+    emailLoginEnabled = true,
+    googleLoginEnabled = Boolean(googleClientId),
+    cas = null,
+  }) =>
+    set({
+      allowSignup,
+      googleClientId,
+      emailLoginEnabled,
+      googleLoginEnabled,
+      cas,
+    }),
 }));
 
 export function useConfigStore(): ConfigState;

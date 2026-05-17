@@ -54,6 +54,20 @@ func TestCreateInvitation_BlocksWhilePending(t *testing.T) {
 	}
 }
 
+func TestCreateInvitationRejectsInvalidEmail(t *testing.T) {
+	req := newRequest("POST", "/api/workspaces/"+testWorkspaceID+"/members", CreateMemberRequest{
+		Email: "h j yue",
+		Role:  "member",
+	})
+	req = withURLParam(req, "id", testWorkspaceID)
+	w := httptest.NewRecorder()
+
+	testHandler.CreateInvitation(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("invalid email: expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 // Regression for issue #2055: an expired pending invitation must NOT block a
 // new invitation to the same email. The stale row should be flipped to
 // 'expired' and a fresh pending row should be created.
