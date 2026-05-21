@@ -5,7 +5,8 @@
 本文面向当前线上测试环境：
 
 ```txt
-https://multica.micoplatform.com
+https://multica.micoplatform.com      # Web / App
+https://multica-api.micoplatform.com  # Backend API / CLI / daemon
 ```
 
 当前测试环境的部署原则：
@@ -16,7 +17,7 @@ https://multica.micoplatform.com
 4. 测试 VPS 上实际运行时使用仓库根目录 `.env` 文件；
 5. Backend 连接 `.env` 里的远程 `DATABASE_URL`，不启动本地 PostgreSQL 容器。
 
-通用 VPS 准备、Caddy 安装和单域名反向代理说明见 [VPS-部署说明.md](./VPS-部署说明.md)。本文只记录当前测试环境的固定部署口径。
+通用 VPS 准备、Caddy 安装和双域名反向代理说明见 [VPS-部署说明.md](./VPS-部署说明.md)。本文只记录当前测试环境的固定部署口径。
 
 ---
 
@@ -141,10 +142,10 @@ multica-web:dev
 
 ### 4.3 数据库连接
 
-当前测试 VPS 使用远程 PostgreSQL。Backend 容器实际使用 `.env` 里的：
+当前测试 VPS 使用远程 PostgreSQL。Backend 容器实际使用 `.env` 里的 `DATABASE_URL`，格式如下：
 
 ```env
-DATABASE_URL=postgres://hjyue:mdl123@proxy.liudododo.com:55432/testdb?sslmode=disable
+DATABASE_URL=postgres://<user>:<password>@<remote-postgres-host>:<port>/<database>?sslmode=<mode>
 ```
 
 `POSTGRES_DB`、`POSTGRES_USER`、`POSTGRES_PASSWORD`、`POSTGRES_PORT` 只保留为数据库信息记录和兼容脚本使用；测试 VPS 的应用容器不靠这些变量拼接连接串。
@@ -172,11 +173,16 @@ Next.js 会把以下路径转发到 Backend：
 wss://multica.micoplatform.com/ws
 ```
 
+测试环境采用双域名后，浏览器仍然通过 `multica.micoplatform.com` 的同源 `/api`、`/auth`、`/ws` 访问后端；`multica-api.micoplatform.com` 只给 CLI、daemon 和运维探活直接访问 Backend。
+
 ---
 
 ## 5. Caddy 配置
 
-测试环境单域名部署，Caddy 只需要把 `/ws` 特别代理到 Backend，其余流量给 Web：
+测试环境双域名部署：
+
+1. `multica.micoplatform.com` 给 Web 使用，除 `/ws` 外都交给 Next.js；
+2. `multica-api.micoplatform.com` 直接代理到 Backend，给 CLI / daemon 使用。
 
 ```caddy
 multica.micoplatform.com {
@@ -190,6 +196,14 @@ multica.micoplatform.com {
     }
 
     reverse_proxy localhost:3000
+}
+
+multica-api.micoplatform.com {
+    encode zstd gzip
+
+    reverse_proxy localhost:8080 {
+        flush_interval -1
+    }
 }
 ```
 
@@ -228,6 +242,7 @@ curl -i http://localhost:8080/readyz
 
 ```bash
 curl -i https://multica.micoplatform.com/api/config
+curl -i https://multica-api.micoplatform.com/health
 ```
 
 登录页检查：
@@ -243,6 +258,15 @@ https://multica.micoplatform.com/login
 3. 不显示 Google 登录；
 4. 点击 SSO 后跳转到公司 CAS；
 5. CAS 登录成功后回到 Multica。
+
+CLI / daemon 接入测试环境：
+
+```bash
+multica config set server_url https://multica-api.micoplatform.com
+multica config set app_url https://multica.micoplatform.com
+multica login
+multica daemon status
+```
 
 ---
 
@@ -327,6 +351,20 @@ docker run --rm \
 5. 如果密钥曾经外泄，直接轮换 `JWT_SECRET`、数据库密码、邮件服务 key 和其他 token；
 6. 如果新增服务端必须读取的环境变量，确认 `docker-compose.selfhost.yml` 的 Backend 仍然通过 `env_file` 注入 `.env`。
 
+双域名相关变量应保持下面的关系：
+
+```env
+FRONTEND_ORIGIN=https://multica.micoplatform.com
+MULTICA_APP_URL=https://multica.micoplatform.com
+MULTICA_SERVER_URL=https://multica-api.micoplatform.com
+CORS_ALLOWED_ORIGINS=https://multica.micoplatform.com
+CAS_SERVICE_URL=https://multica.micoplatform.com/auth/cas/callback
+NEXT_PUBLIC_WS_URL=
+COOKIE_DOMAIN=
+```
+
+`MULTICA_SERVER_URL` 也兼容历史写法 `wss://multica-api.micoplatform.com/ws`，但测试环境文档统一使用 `https://multica-api.micoplatform.com`，和“远程机器连接命令”里的 `server_url` 保持一致。
+
 ---
 
 ## 11. 常见问题
@@ -360,7 +398,10 @@ docker compose -f docker-compose.selfhost.yml logs -f backend
 2. `DATABASE_URL` 配置错误；
 3. 数据库迁移失败；
 4. `JWT_SECRET`、CAS、邮件等环境变量不符合生产安全检查；
-5. Caddy 没有正确代理到 `localhost:3000`。
+5. Caddy 没有正确代理 app 域到 `localhost:3000`；
+6. Web 镜像构建时 `REMOTE_API_URL=http://backend:8080` 没有生效。
+
+如果 `https://multica.micoplatform.com/api/config` 正常，但 `https://multica-api.micoplatform.com/health` 失败，优先检查 API 域 DNS 和 Caddy 的 API 域 server block。
 
 ### 11.3 SSO 回调失败
 
@@ -369,7 +410,7 @@ docker compose -f docker-compose.selfhost.yml logs -f backend
 ```env
 FRONTEND_ORIGIN=https://multica.micoplatform.com
 MULTICA_APP_URL=https://multica.micoplatform.com
-MULTICA_SERVER_URL=wss://multica.micoplatform.com/ws
+MULTICA_SERVER_URL=https://multica-api.micoplatform.com
 CAS_SERVICE_URL=https://multica.micoplatform.com/auth/cas/callback
 ```
 
@@ -377,11 +418,21 @@ CAS_SERVICE_URL=https://multica.micoplatform.com/auth/cas/callback
 
 ### 11.4 WebSocket 连接失败
 
-检查 Caddy 是否包含 `/ws` 特殊代理：
+浏览器实时连接使用 `multica.micoplatform.com/ws`，daemon 唤醒连接使用 `multica-api.micoplatform.com/api/daemon/ws`。检查 Caddy 是否包含 app 域 `/ws` 特殊代理：
 
 ```caddy
 @multica_ws path /ws /ws/*
 handle @multica_ws {
+    reverse_proxy localhost:8080 {
+        flush_interval -1
+    }
+}
+```
+
+并确认 API 域整站代理到 Backend：
+
+```caddy
+multica-api.micoplatform.com {
     reverse_proxy localhost:8080 {
         flush_interval -1
     }

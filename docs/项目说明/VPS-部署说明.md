@@ -1,45 +1,48 @@
-# Multica 单台 VPS 部署说明
+# Multica 双域名单台 VPS 部署说明
 
 本文面向一台普通 Linux VPS 的自托管部署：VPS 只运行 Multica Backend、Multica Web 和反向代理，PostgreSQL 统一使用远程数据库。
 
 如果部署的是当前公司 CAS SSO 改造版本，优先使用“从当前代码构建镜像”的方式，而不是直接拉官方 `latest` 镜像。官方镜像可能不包含公司定制的 CAS / 免邮件邀请逻辑。
 
-当前线上测试环境 `https://multica.micoplatform.com` 的固定部署口径见 [测试VPS-部署说明.md](./测试VPS-部署说明.md)：在测试 VPS 上从当前代码构建本地镜像，以仓库 `.env.test` 作为测试 VPS `.env` 的来源，并连接 `.env.test` 中配置的远程 PostgreSQL。
+当前线上测试环境的固定部署口径见 [测试VPS-部署说明.md](./测试VPS-部署说明.md)：在测试 VPS 上从当前代码构建本地镜像，以仓库 `.env.test` 作为测试 VPS `.env` 的来源，并连接 `.env.test` 中配置的远程 PostgreSQL。
 
 ---
 
 ## 1. 推荐部署形态
 
-### 1.1 单域名部署
+### 1.1 双域名部署（推荐）
 
-推荐先用一个域名：
+推荐准备两个域名：
+
+```txt
+https://multica.example.com      # Web / App，用户浏览器入口
+https://multica-api.example.com  # Backend API，CLI / daemon 入口
+```
+
+这种形态更接近原仓库的官方云端配置：`app_url` 指向 Web，`server_url` 指向 API，例如官方页面里的 `https://multica.ai` 和 `https://api.multica.ai`。
+
+职责划分：
+
+| 域名或路径 | 说明 |
+|---|---|
+| `https://multica.example.com` | Web 前端、登录页、CAS callback |
+| `https://multica.example.com/api/*` | 浏览器同源 API，由 Next.js rewrite 转发到 Backend |
+| `https://multica.example.com/auth/*` | 浏览器同源认证接口，由 Next.js rewrite 转发到 Backend |
+| `https://multica.example.com/ws` | Web 前端实时连接，反向代理到 Backend |
+| `https://multica.example.com/uploads/*` | 浏览器同源上传文件访问，由 Next.js rewrite 转发到 Backend |
+| `https://multica-api.example.com` | CLI / daemon / 直接 API 访问，反向代理到 Backend |
+
+注意：这里的“双域名”不要求浏览器跨域调用 `multica-api.example.com`。Web 仍通过 `multica.example.com` 的同源 `/api`、`/auth`、`/ws` 访问后端，这样 `COOKIE_DOMAIN` 可以继续留空，避免跨子域 cookie 和 CORS 的复杂度。`api` 域主要给 CLI、daemon 和运维探活使用。
+
+### 1.2 单域名部署（可选）
+
+如果 DNS 或证书暂时只能准备一个域名，也可以只使用：
 
 ```txt
 https://multica.example.com
 ```
 
-访问路径：
-
-| 路径 | 说明 |
-|---|---|
-| `/` | Web 前端 |
-| `/api/*` | 由 Next.js rewrite 转发到后端 |
-| `/auth/*` | CAS callback / 登录相关接口，转发到后端 |
-| `/ws` | WebSocket，转发到后端 |
-| `/uploads/*` | 本地上传文件，转发到后端 |
-
-这种方式最简单，`COOKIE_DOMAIN` 可以留空，不需要处理跨子域 cookie。
-
-### 1.2 双域名部署（可选）
-
-如果后续要拆分前后端域名，可以使用：
-
-```txt
-https://multica.example.com      # Web
-https://multica-api.example.com  # Backend
-```
-
-双域名模式需要额外确认 CORS、cookie domain、CLI server URL，第一版部署不建议先走这个方案。
+单域名模式下，`MULTICA_APP_URL` 和 `MULTICA_SERVER_URL` 都指向同一个域名；`/api/*`、`/auth/*`、`/ws`、`/uploads/*` 仍由前端 rewrite 或反向代理转给后端。
 
 ---
 
@@ -58,10 +61,11 @@ https://multica-api.example.com  # Backend
 
 ### 2.2 域名和端口
 
-准备一个域名并解析到 VPS 公网 IP：
+准备两个域名并解析到 VPS 公网 IP：
 
 ```txt
-multica.example.com -> VPS 公网 IP
+multica.example.com     -> VPS 公网 IP
+multica-api.example.com -> VPS 公网 IP
 ```
 
 安全组 / 防火墙只需要对公网开放：
@@ -164,7 +168,8 @@ PORT=8080
 FRONTEND_PORT=3000
 FRONTEND_ORIGIN=https://multica.example.com
 MULTICA_APP_URL=https://multica.example.com
-MULTICA_SERVER_URL=wss://multica.example.com/ws
+MULTICA_SERVER_URL=https://multica-api.example.com
+CORS_ALLOWED_ORIGINS=https://multica.example.com
 
 COOKIE_DOMAIN=
 ```
@@ -173,9 +178,11 @@ COOKIE_DOMAIN=
 
 1. `DATABASE_URL` 必须指向远程 PostgreSQL，部署环境不使用本机 `localhost` / Compose 内部 `postgres`；
 2. `JWT_SECRET` 必须修改，不能使用默认值；
-3. 单域名部署时 `COOKIE_DOMAIN` 留空；
+3. 推荐部署口径下，浏览器仍走 `multica.example.com` 的同源 API，`COOKIE_DOMAIN` 留空即可；
 4. `FRONTEND_ORIGIN` 必须是浏览器访问 Multica 的 HTTPS 地址；
-5. `MULTICA_SERVER_URL` 给 CLI / daemon 使用，HTTPS 页面对应 `wss://.../ws`。
+5. `MULTICA_APP_URL` 给 CLI 登录流程打开浏览器用，必须指向 Web 域名；
+6. `MULTICA_SERVER_URL` 给 CLI / daemon 调后端用，必须指向 API 域名；
+7. 历史文档里也可能写 `wss://multica-api.example.com/ws`，当前 CLI / daemon 会归一化 `https`、`wss` 两种写法；新部署建议统一写 `https://multica-api.example.com`。
 
 ### 5.2 CAS SSO 配置
 
@@ -496,6 +503,7 @@ sudo nano /etc/caddy/Caddyfile
 multica.example.com {
     encode zstd gzip
 
+    # Browser WebSocket stays on the app origin.
     @multica_ws path /ws /ws/*
     handle @multica_ws {
         reverse_proxy localhost:8080 {
@@ -504,6 +512,15 @@ multica.example.com {
     }
 
     reverse_proxy localhost:3000
+}
+
+multica-api.example.com {
+    encode zstd gzip
+
+    # CLI / daemon use this host for REST APIs and /api/daemon/ws.
+    reverse_proxy localhost:8080 {
+        flush_interval -1
+    }
 }
 ```
 
@@ -516,9 +533,9 @@ sudo systemctl reload caddy
 
 Caddy 会自动申请和续期 HTTPS 证书。确认域名已经解析到 VPS，并且 80 / 443 没有被安全组拦截。
 
-### 7.2 为什么只代理 `/ws` 到后端
+### 7.2 为什么 app 域只特殊代理 `/ws`
 
-在单域名部署下，浏览器访问 `https://multica.example.com` 会先进入 Next.js 前端。前端自身配置了 rewrite，会把这些路径转发到 backend：
+浏览器访问 `https://multica.example.com` 会先进入 Next.js 前端。前端自身配置了 rewrite，会把这些路径转发到 Backend：
 
 ```txt
 /api/*
@@ -527,7 +544,9 @@ Caddy 会自动申请和续期 HTTPS 证书。确认域名已经解析到 VPS，
 /uploads/*
 ```
 
-所以 Caddy 只需要特别处理 WebSocket 的 `/ws`，其他请求交给前端即可。
+普通 HTTP 请求可以交给 Next.js rewrite。`/ws` 是浏览器实时 WebSocket 连接，反向代理层直接转给 Backend 更稳定。
+
+`https://multica-api.example.com` 则不经过 Next.js，整站直接反向代理到 Backend，供 CLI / daemon 使用。
 
 ---
 
@@ -538,6 +557,7 @@ Caddy 会自动申请和续期 HTTPS 证书。确认域名已经解析到 VPS，
 ```bash
 curl -i http://localhost:8080/health
 curl -i https://multica.example.com/api/config
+curl -i https://multica-api.example.com/health
 ```
 
 `/api/config` 里应能看到：
@@ -594,8 +614,17 @@ brew install multica-ai/tap/multica
 
 ```bash
 multica setup self-host \
-  --server-url https://multica.example.com \
+  --server-url https://multica-api.example.com \
   --app-url https://multica.example.com
+```
+
+如果手动配置：
+
+```bash
+multica config set server_url https://multica-api.example.com
+multica config set app_url https://multica.example.com
+multica login
+multica daemon start
 ```
 
 验证：
@@ -696,6 +725,7 @@ sudo systemctl restart multica-web
 ```bash
 docker compose -f docker-compose.selfhost.yml exec backend env | grep CAS
 curl -s https://multica.example.com/api/config
+curl -s https://multica-api.example.com/api/config
 ```
 
 确认：
@@ -712,7 +742,7 @@ curl -s https://multica.example.com/api/config
 
 1. CAS 平台登记的 service/callback 是否等于 `CAS_SERVICE_URL`；
 2. `CAS_SERVICE_URL` 是否为 `https://multica.example.com/auth/cas/callback`；
-3. Caddy 是否正常把请求转发到前端，再由 Next.js rewrite 转发到 backend；
+3. Caddy 是否正常把 app 域请求转发到前端，再由 Next.js rewrite 转发到 Backend；
 4. backend 日志里是否有 CAS ticket validate 错误。
 
 查看 backend 日志：
@@ -733,11 +763,21 @@ docker compose -f docker-compose.selfhost.yml logs -f backend
 
 ### 11.4 WebSocket 或实时更新异常
 
-检查 Caddy 是否包含：
+浏览器实时连接使用 app 域的 `/ws`，daemon 唤醒连接使用 API 域的 `/api/daemon/ws`。先检查 Caddy 是否包含：
 
 ```caddy
 @multica_ws path /ws /ws/*
 handle @multica_ws {
+    reverse_proxy localhost:8080 {
+        flush_interval -1
+    }
+}
+```
+
+并确认 API 域整站代理到 Backend：
+
+```caddy
+multica-api.example.com {
     reverse_proxy localhost:8080 {
         flush_interval -1
     }
@@ -758,15 +798,18 @@ sudo systemctl reload caddy
 上线前确认：
 
 1. VPS 安全组只开放 `22`、`80`、`443`；
-2. DNS 已解析到 VPS；
+2. Web 域名和 API 域名都已解析到 VPS；
 3. HTTPS 证书正常；
 4. `.env` 中 `DATABASE_URL` 指向远程 PostgreSQL；
 5. `.env` 中 `JWT_SECRET` 已更换；
 6. `FRONTEND_ORIGIN=https://multica.example.com`；
-7. `CAS_SERVICE_URL=https://multica.example.com/auth/cas/callback`；
-8. CAS 平台允许该 callback；
-9. `/api/config` 显示 CAS 已启用；
-10. 管理员可以 SSO 登录；
-11. 邀请用户后，用户 SSO 登录可以自动加入工作区；
-12. 已配置远程数据库备份；
-13. 已记录升级方式和回滚方式。
+7. `MULTICA_APP_URL=https://multica.example.com`；
+8. `MULTICA_SERVER_URL=https://multica-api.example.com`；
+9. `CAS_SERVICE_URL=https://multica.example.com/auth/cas/callback`；
+10. CAS 平台允许该 callback；
+11. app 域 `/api/config` 显示 CAS 已启用；
+12. API 域 `/health` 可访问；
+13. 管理员可以 SSO 登录；
+14. 邀请用户后，用户 SSO 登录可以自动加入工作区；
+15. 已配置远程数据库备份；
+16. 已记录升级方式和回滚方式。
