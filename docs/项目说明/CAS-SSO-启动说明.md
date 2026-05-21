@@ -166,7 +166,7 @@ http://localhost:8080/api/config
     "google_login_enabled": false,
     "cas": {
       "enabled": true,
-      "display_name": "公司 SSO",
+      "display_name": "米可世界统一飞书登录",
       "login_url": "http://localhost:8080/auth/cas/start"
     }
   }

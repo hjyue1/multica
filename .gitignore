@@ -50,6 +50,7 @@ _features/
 
 # runtime
 *.pid
+docker-compose.images.yml
 
 # platform specific
 *.dmg

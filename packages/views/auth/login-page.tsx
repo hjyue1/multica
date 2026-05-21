@@ -443,9 +443,9 @@ export function LoginPage({
           <CardTitle className="text-2xl">
             {t(($) => $.signin.title)}
           </CardTitle>
-          <CardDescription>
+          {/* <CardDescription>
             {t(($) => $.signin.description)}
-          </CardDescription>
+          </CardDescription> */}
         </CardHeader>
         {emailLoginEnabled && (
           <CardContent>

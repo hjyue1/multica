@@ -208,18 +208,18 @@ function LoginPageContent() {
           : undefined
       }
       onTokenObtained={setLoggedInCookie}
-      extra={
-        <span className="text-xs text-muted-foreground">
-          {t(($) => $.web.prefer_desktop)}{" "}
-          <Link
-            href="/download"
-            onClick={() => captureDownloadIntent("login")}
-            className="font-medium text-foreground underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground/70"
-          >
-            {t(($) => $.web.download)}
-          </Link>
-        </span>
-      }
+      // extra={
+      //   <span className="text-xs text-muted-foreground">
+      //     {t(($) => $.web.prefer_desktop)}{" "}
+      //     <Link
+      //       href="/download"
+      //       onClick={() => captureDownloadIntent("login")}
+      //       className="font-medium text-foreground underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground/70"
+      //     >
+      //       {t(($) => $.web.download)}
+      //     </Link>
+      //   </span>
+      // }
     />
   );
 }
