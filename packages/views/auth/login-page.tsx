@@ -18,6 +18,7 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@multica/ui/components/ui/input-otp";
+import { Loader2 } from "lucide-react";
 import { useAuthStore } from "@multica/core/auth";
 import { workspaceKeys } from "@multica/core/workspace/queries";
 import { api } from "@multica/core/api";
@@ -125,6 +126,7 @@ export function LoginPage({
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [ssoLoading, setSsoLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [existingUser, setExistingUser] = useState<User | null>(null);
   // Tracks how the existing session was detected so handleCliAuthorize
@@ -299,7 +301,8 @@ export function LoginPage({
   };
 
   const handleCASLogin = () => {
-    if (!cas?.enabled || !cas.loginUrl) return;
+    if (!cas?.enabled || !cas.loginUrl || ssoLoading) return;
+    setSsoLoading(true);
     const loginUrl = new URL(cas.loginUrl, window.location.origin);
     let currentPath = "/login";
     try {
@@ -475,7 +478,7 @@ export function LoginPage({
               form="login-form"
               className="w-full"
               size="lg"
-              disabled={!email || loading}
+              disabled={!email || loading || ssoLoading}
             >
               {loading
                 ? t(($) => $.signin.sending)
@@ -501,8 +504,9 @@ export function LoginPage({
               className="w-full"
               size="lg"
               onClick={handleCASLogin}
-              disabled={loading}
+              disabled={loading || ssoLoading}
             >
+              {ssoLoading && <Loader2 className="h-4 w-4 animate-spin" />}
               {t(($) => $.signin.cas, {
                 provider: cas?.displayName || "Company SSO",
               })}
@@ -516,7 +520,7 @@ export function LoginPage({
                 className="w-full"
                 size="lg"
                 onClick={handleGoogleLogin}
-                disabled={loading}
+                disabled={loading || ssoLoading}
               >
                 <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
                   <path

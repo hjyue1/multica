@@ -188,6 +188,10 @@ function LoginPageContent() {
     );
   }
 
+  if (isLoading || (user && !cliCallbackRaw)) {
+    return null;
+  }
+
   return (
     <LoginPage
       onSuccess={handleSuccess}

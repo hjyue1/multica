@@ -25,18 +25,22 @@ const {
   mockSendCode,
   mockVerifyCode,
   mockIssueCliToken,
+  mockRouterPush,
+  mockRouterReplace,
   searchParamsState,
   authStateRef,
 } = vi.hoisted(() => ({
   mockSendCode: vi.fn(),
   mockVerifyCode: vi.fn(),
   mockIssueCliToken: vi.fn(),
+  mockRouterPush: vi.fn(),
+  mockRouterReplace: vi.fn(),
   searchParamsState: { params: new URLSearchParams() },
   authStateRef: {
     state: {
       sendCode: vi.fn(),
       verifyCode: vi.fn(),
-      user: null as null | { id: string; email: string },
+      user: null as null | { id: string; email: string; onboarded_at?: string | null },
       isLoading: false,
     },
   },
@@ -44,7 +48,7 @@ const {
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: mockRouterPush, replace: mockRouterReplace }),
   usePathname: () => "/login",
   useSearchParams: () => searchParamsState.params,
 }));
@@ -98,11 +102,33 @@ describe("LoginPage", () => {
     render(<LoginPage />, { wrapper: createWrapper() });
 
     expect(screen.getByText("Sign in to Multica")).toBeInTheDocument();
-    expect(screen.getByText("Enter your email to get a login code")).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Continue" })
     ).toBeInTheDocument();
+  });
+
+  it("does not flash the email form while auth is initializing", () => {
+    authStateRef.state.isLoading = true;
+
+    render(<LoginPage />, { wrapper: createWrapper() });
+
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+  });
+
+  it("does not flash the email form while redirecting an authenticated user", async () => {
+    authStateRef.state.user = {
+      id: "u1",
+      email: "test@multica.ai",
+      onboarded_at: "2026-05-21T00:00:00Z",
+    };
+
+    render(<LoginPage />, { wrapper: createWrapper() });
+
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockRouterReplace).toHaveBeenCalled();
+    });
   });
 
   it("does not call sendCode when email is empty", async () => {

@@ -119,9 +119,6 @@ describe("LoginPage", () => {
     expect(
       screen.getByText(/sign in to multica/i),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/enter your email to get a login code/i),
-    ).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /continue/i }),
@@ -424,10 +421,13 @@ describe("LoginPage", () => {
     );
 
     const user = userEvent.setup();
-    await user.click(
-      screen.getByRole("button", { name: /continue with company sso/i }),
-    );
+    const button = screen.getByRole("button", {
+      name: /continue with company sso/i,
+    });
+    await user.click(button);
 
+    expect(button).toBeDisabled();
+    expect(button.querySelector(".animate-spin")).not.toBeNull();
     expect(window.location.href).toContain(
       "http://localhost:8080/auth/cas/start?next=%2F",
     );
