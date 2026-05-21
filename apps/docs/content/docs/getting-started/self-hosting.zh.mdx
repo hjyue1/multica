@@ -11,13 +11,14 @@ Multica has three components:
 |-----------|-------------|------------|
 | **Backend** | REST API + WebSocket server | Go (single binary) |
 | **Frontend** | Web application | Next.js 16 |
-| **Database** | Primary data store | PostgreSQL 17 with pgvector |
+| **Database** | Remote primary data store | PostgreSQL 17 with pgvector |
 
 Each user who wants to run AI agents locally also installs the **`multica` CLI** and runs the **agent daemon** on their own machine.
 
 ## Prerequisites
 
 - Docker and Docker Compose
+- Remote PostgreSQL 17 with pgvector
 
 ## Quick Install
 
@@ -31,7 +32,7 @@ curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/ins
 multica setup self-host
 ```
 
-This installs the CLI, checks out the latest self-host assets, pulls the official Multica images from GHCR, and configures everything for localhost. Then open http://localhost:3000 and pick a login method: configure `RESEND_API_KEY` in `.env` for email-based codes (recommended), or leave Resend unset and copy the generated code from backend logs. See [Step 2 — Log In](#step-2--log-in) for details.
+This installs the CLI, checks out the latest self-host assets, and pulls the official Multica images from GHCR. Set `.env` `DATABASE_URL` to a remote PostgreSQL 17 + pgvector instance before starting the server. Then open http://localhost:3000 and pick a login method: configure `RESEND_API_KEY` in `.env` for email-based codes (recommended), or leave Resend unset and copy the generated code from backend logs. See [Step 2 — Log In](#step-2--log-in) for details.
 
 <Callout>
 If the self-host server is already running and you only need the CLI on a macOS/Linux machine, install it with Homebrew: `brew install multica-ai/tap/multica`.
@@ -177,7 +178,7 @@ All configuration is done via environment variables. Copy `.env.example` as a st
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://multica:multica@localhost:5432/multica?sslmode=disable` |
+| `DATABASE_URL` | Remote PostgreSQL connection string | `postgres://user:password@remote-postgres.example.com:5432/multica?sslmode=require` |
 | `JWT_SECRET` | **Must change from default.** Secret key for signing JWT tokens. Use a long random string. | `openssl rand -hex 32` |
 | `FRONTEND_ORIGIN` | URL where the frontend is served (used for CORS) | `https://app.example.com` |
 
@@ -271,17 +272,9 @@ Agent-specific overrides:
 
 ## Database Setup
 
-Multica requires PostgreSQL 17 with the pgvector extension.
+Multica requires remote PostgreSQL 17 with the pgvector extension.
 
-### Using the Included Docker Compose
-
-```bash
-docker compose up -d postgres
-```
-
-This starts a `pgvector/pgvector:pg17` container on port 5432 with default credentials (`multica`/`multica`).
-
-### Using Your Own PostgreSQL
+### Remote PostgreSQL
 
 Ensure the pgvector extension is available:
 
@@ -305,10 +298,10 @@ cd server && go run ./cmd/migrate up
 
 If you prefer to build and run services manually:
 
-**Prerequisites:** Go 1.26+, Node.js 20+, pnpm 10.28+, PostgreSQL 17 with pgvector.
+**Prerequisites:** Go 1.26+, Node.js 20+, pnpm 10.28+, remote PostgreSQL 17 with pgvector.
 
 ```bash
-# Start your PostgreSQL (or use: docker compose up -d postgres)
+# Ensure DATABASE_URL points to the remote PostgreSQL instance
 
 # Build the backend
 make build

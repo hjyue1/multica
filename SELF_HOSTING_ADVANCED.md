@@ -10,7 +10,7 @@ All configuration is done via environment variables. Copy `.env.example` as a st
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://multica:multica@localhost:5432/multica?sslmode=disable` |
+| `DATABASE_URL` | Remote PostgreSQL connection string | `postgres://user:password@remote-postgres.example.com:5432/multica?sslmode=require` |
 | `JWT_SECRET` | **Must change from default.** Secret key for signing JWT tokens. Use a long random string. | `openssl rand -hex 32` |
 | `FRONTEND_ORIGIN` | URL where the frontend is served (used for CORS) | `https://app.example.com` |
 
@@ -140,19 +140,15 @@ Agent-specific overrides:
 
 Multica requires PostgreSQL 17 with the pgvector extension.
 
-### Using Docker Compose (Recommended)
+### Remote PostgreSQL
 
-The `docker-compose.selfhost.yml` includes PostgreSQL. No separate setup needed.
-
-### Using Your Own PostgreSQL
-
-If you prefer to use an existing PostgreSQL instance, ensure the pgvector extension is available:
+Deployment environments always use a remote PostgreSQL instance. Ensure the pgvector extension is available:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-Set `DATABASE_URL` in your `.env` and remove the `postgres` service from the compose file.
+Set `DATABASE_URL` in your `.env`. The self-host Compose file starts only the backend and frontend; it does not start a local PostgreSQL container.
 
 ### Running Migrations Manually
 
@@ -170,10 +166,10 @@ cd server && go run ./cmd/migrate up
 
 If you prefer to build and run services manually:
 
-**Prerequisites:** Go 1.26+, Node.js 20+, pnpm 10.28+, PostgreSQL 17 with pgvector.
+**Prerequisites:** Go 1.26+, Node.js 20+, pnpm 10.28+, remote PostgreSQL 17 with pgvector.
 
 ```bash
-# Start your PostgreSQL (or use: docker compose up -d postgres)
+# Ensure DATABASE_URL points to the remote PostgreSQL instance
 
 # Build the backend
 make build

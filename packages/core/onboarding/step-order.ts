@@ -1,7 +1,7 @@
 import type { OnboardingStep } from "./types";
 
 /**
- * Canonical order of the persisted onboarding steps.
+ * Canonical order of the currently active onboarding steps.
  *
  * Single source of truth for "what step comes after what" — consumed
  * by the UI progress indicator to compute `index of current_step` and
@@ -9,15 +9,9 @@ import type { OnboardingStep } from "./types";
  * requires changing this array; every call site that reads it updates
  * automatically.
  *
- * Intentionally excludes "welcome": welcome is a first-entry product
- * intro, not a persisted step. It doesn't show a progress indicator
- * for the same reason — users shouldn't think of reading the intro
- * as progress toward completing setup.
+ * The fuller onboarding flow is intentionally hidden for now; first-run
+ * setup only asks the user to create or choose a workspace.
  */
 export const ONBOARDING_STEP_ORDER: readonly OnboardingStep[] = [
-  "questionnaire",
   "workspace",
-  "runtime",
-  "agent",
-  "first_issue",
 ] as const;

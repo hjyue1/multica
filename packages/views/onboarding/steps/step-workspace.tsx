@@ -37,8 +37,8 @@ import {
 import { isReservedSlug } from "@multica/core/paths";
 
 /**
- * Step 2 — create your first workspace, or continue with one set up in
- * an earlier session.
+ * Create your first workspace, or continue with one set up in an
+ * earlier session.
  *
  * Shares Questionnaire's editorial two-column skeleton: 3-region app
  * shell on the left, side panel on the right. One **unified footer CTA**

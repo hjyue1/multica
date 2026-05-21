@@ -36,6 +36,16 @@ define REQUIRE_ENV
 	fi
 endef
 
+define REQUIRE_SELFHOST_REMOTE_DATABASE
+	@DATABASE_URL_VALUE=$$(grep -E '^DATABASE_URL=' .env 2>/dev/null | tail -n1 | cut -d= -f2-); \
+	case "$$DATABASE_URL_VALUE" in \
+		""|*remote-postgres.example.com*|*@localhost:*|*@127.0.0.1:*|*@\[::1\]:*|*@postgres:*) \
+			echo "Self-host deployment requires a remote DATABASE_URL in .env."; \
+			echo "Set DATABASE_URL to the managed PostgreSQL connection string before starting."; \
+			exit 1 ;; \
+	esac
+endef
+
 # Default target changed from selfhost to help: bare `make` now prints this help
 # instead of launching a full Docker Compose build, which is safer for onboarding.
 .DEFAULT_GOAL := help
@@ -64,6 +74,7 @@ selfhost: ## Create .env if needed, then pull and start the official self-hosted
 		fi; \
 		echo "==> Generated random JWT_SECRET"; \
 	fi
+	$(REQUIRE_SELFHOST_REMOTE_DATABASE)
 	@echo "==> Pulling official Multica images..."
 	@if ! docker compose -f docker-compose.selfhost.yml pull; then \
 		echo ""; \
@@ -114,6 +125,7 @@ selfhost-build: ## Build backend/web from the current checkout and start the sel
 		fi; \
 		echo "==> Generated random JWT_SECRET"; \
 	fi
+	$(REQUIRE_SELFHOST_REMOTE_DATABASE)
 	@echo "==> Building Multica from the current checkout..."
 	docker compose -f docker-compose.selfhost.yml -f docker-compose.selfhost.build.yml up -d --build
 	@echo "==> Waiting for backend to be ready..."

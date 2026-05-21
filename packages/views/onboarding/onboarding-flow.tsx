@@ -27,6 +27,8 @@ import { StepAgent } from "./steps/step-agent";
 import { StepFirstIssue } from "./steps/step-first-issue";
 import { useT } from "../i18n";
 
+const ONBOARDING_START_STEP: OnboardingStep = "workspace";
+
 const EMPTY_QUESTIONNAIRE: QuestionnaireAnswers = {
   team_size: null,
   team_size_other: null,
@@ -71,7 +73,7 @@ export function OnboardingFlow({
 
   const qc = useQueryClient();
 
-  const [step, setStep] = useState<OnboardingStep>("welcome");
+  const [step, setStep] = useState<OnboardingStep>(ONBOARDING_START_STEP);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [runtime, setRuntime] = useState<AgentRuntime | null>(null);
   const [, setAgent] = useState<Agent | null>(null);
@@ -141,11 +143,19 @@ export function OnboardingFlow({
     [],
   );
 
-  const handleWorkspaceCreated = useCallback((ws: Workspace) => {
+  const handleWorkspaceCreated = useCallback(async (ws: Workspace) => {
     setWorkspace(ws);
     setCurrentWorkspace(ws.slug, ws.id);
-    setStep("runtime");
-  }, []);
+    try {
+      await completeOnboarding("runtime_skipped", ws.id);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : t(($) => $.errors.skip_failed),
+      );
+      return;
+    }
+    onComplete(ws);
+  }, [onComplete, t]);
 
   const handleRuntimeNext = useCallback((rt: AgentRuntime | null) => {
     setRuntime(rt);
@@ -216,7 +226,6 @@ export function OnboardingFlow({
       <StepWorkspace
         existing={existingWorkspace}
         onCreated={handleWorkspaceCreated}
-        onBack={() => handleBack("workspace")}
       />
     );
   }
